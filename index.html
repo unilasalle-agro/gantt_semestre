@@ -60,6 +60,8 @@ button, select, input { font:inherit; color:inherit }
   padding:5px 10px; display:flex; flex-direction:column; justify-content:center; gap:1px; min-width:0 }
 .row.grp .lab { background:var(--bg); font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); white-space:nowrap; flex-direction:row; align-items:center; overflow:visible }
 .row.grp .lab span { position:sticky; left:10px }
+.row.grp .lab { justify-content:flex-start }
+.row.grp { break-after:avoid }
 .row.grp .lab em { font-style:normal; font-weight:400; text-transform:none; letter-spacing:0 }
 .lab b { font-size:13.5px; font-weight:500; line-height:1.25; overflow-wrap:break-word }
 .lab small { font-family:var(--f-num); font-size:10.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
@@ -111,21 +113,61 @@ td.m { color:var(--muted); font-size:12.5px }
 .link { background:none; border:0; color:var(--accent); cursor:pointer; padding:0; text-decoration:underline }
 @media (max-width:640px) { :root { --lw:150px } h1 { font-size:22px } .lab small { display:none } }
 @media (prefers-reduced-motion: no-preference) { .drop { transition:border-color .15s } }
+.menu { position:relative }
+.menu summary { list-style:none; cursor:pointer; user-select:none }
+.menu summary::-webkit-details-marker { display:none }
+.menu-list { position:absolute; right:0; top:calc(100% + 4px); z-index:20; min-width:270px; background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:4px; display:flex; flex-direction:column; box-shadow:0 6px 20px rgba(0,0,0,.18) }
+.menu-list button { text-align:left; background:none; border:0; border-radius:4px; padding:8px 10px; cursor:pointer; color:var(--fg) }
+.menu-list button:hover, .menu-list button:focus-visible { background:var(--wk); outline:none }
+.menu summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px }
+/* palette claire forcée pour les exports d'image (fond blanc) */
+.force-light.force-light.force-light {
+  --bg:#ffffff; --panel:#ffffff; --fg:#1b2330; --muted:#5d6878; --line:#dfe3ea; --grid:#e6e9ef; --wk:#eef0f4;
+  --span:#e3e8f0; --exam:#d42f2b; --examfg:#ffffff; --remise:#a8337f; --remisefg:#ffffff; --today:#0b7a6f;
+  --CM:#25507a; --TD:#4f9bb3; --TP:#8a79c9; --AF:#aab2bf; --EXT:#c19a2e; --AUTRE:#7d8b6a; color-scheme:light }
+.force-light .lab { position:relative; left:auto }
+.force-light .row.grp .lab span { position:static }
+.force-light .hdr { position:relative }
+.exp-title { font-weight:700; font-size:18px; margin:0 0 4px }
+.exp-sub { font-family:var(--f-num); font-size:11.5px; color:var(--muted); margin:0 0 10px }
+.exp-legend { margin:0 0 10px }
+.exp-stripe { position:absolute; top:0; bottom:0 }
+@page { size:A4 landscape; margin:9mm }
+@media print {
+  :root:root:root {
+    --bg:#ffffff; --panel:#ffffff; --fg:#1b2330; --muted:#5d6878; --line:#dfe3ea; --grid:#e6e9ef; --wk:#eef0f4;
+    --span:#e3e8f0; --exam:#d42f2b; --examfg:#ffffff; --remise:#a8337f; --remisefg:#ffffff; --today:#0b7a6f;
+    --CM:#25507a; --TD:#4f9bb3; --TP:#8a79c9; --AF:#aab2bf; --EXT:#c19a2e; --AUTRE:#7d8b6a; color-scheme:light }
+  * { -webkit-print-color-adjust:exact; print-color-adjust:exact }
+  body { padding:0; font-size:12px }
+  .noprint { display:none !important }
+  .wrap { gap:12px; max-width:none }
+  h1 { font-size:20px }
+  .chart-box { overflow:visible; border:0 }
+  .chart { zoom:var(--pz,1) }
+  .lab, .hdr, .row.grp .lab span { position:static }
+  .row { break-inside:avoid }
+  .todayline { display:none !important }
+  section { break-inside:avoid-page }
+  table { min-width:0 }
+  .tbl { overflow:visible }
+  tr { break-inside:avoid }
+}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <h1>Gantt de semestre</h1>
-    <p class="sub">Déposez le planning du semestre (Excel ou CSV). Le Gantt regroupe les modules par UE et fait ressortir les examens et les remises de rapports. Le fichier reste dans votre navigateur et n’est envoyé nulle part.</p>
+    <p class="sub noprint">Déposez le planning du semestre (Excel ou CSV). Le Gantt regroupe les modules par UE et fait ressortir les examens et les remises de rapports. Le fichier reste dans votre navigateur et n’est envoyé nulle part.</p>
   </header>
 
-  <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choisir un fichier de planning">
+  <div class="drop noprint" id="drop" tabindex="0" role="button" aria-label="Choisir un fichier de planning">
     <b>Déposer un fichier .xlsx ou .csv ici, ou cliquer pour le choisir</b>
     <span>Colonnes attendues : Date, Début, Fin, Durée en minutes, Type d’activité, Module, UE</span>
     <input id="file" type="file" accept=".xlsx,.xls,.csv,.txt" hidden>
   </div>
-  <div id="msg" class="msg" hidden></div>
+  <div id="msg" class="msg noprint" hidden></div>
 
   <div id="app" hidden>
     <div class="wrap">
@@ -133,14 +175,22 @@ td.m { color:var(--muted); font-size:12.5px }
         <span class="filename" id="fname"></span>
         <label id="sheetPick" hidden>Feuille&nbsp;<select id="sheet"></select></label>
         <span class="grow"></span>
-        <button class="btn ghost" id="export" type="button">Télécharger le planning avec les remises (.xlsx)</button>
+        <details class="menu noprint" id="menu">
+          <summary class="btn ghost">Exporter ▾</summary>
+          <div class="menu-list" role="menu">
+            <button type="button" role="menuitem" data-exp="png">Image PNG (fond blanc)</button>
+            <button type="button" role="menuitem" data-exp="jpeg">Image JPEG (fond blanc)</button>
+            <button type="button" role="menuitem" data-exp="pdf">PDF (ouvre l’impression)</button>
+            <button type="button" role="menuitem" data-exp="xlsx">Planning avec les remises (.xlsx)</button>
+          </div>
+        </details>
       </div>
 
       <div class="legend" id="legend"></div>
       <div class="chart-box"><div class="chart" id="chart"></div></div>
-      <p class="note">Chaque colonne est un jour, chaque trait un jour de cours. Survolez un jour pour voir les horaires. « Créneaux » compte les lignes du fichier, groupes parallèles inclus. Les chiffres sous l’axe des mois sont les lundis.</p>
+      <p class="note noprint">Chaque colonne est un jour, chaque trait un jour de cours. Survolez un jour pour voir les horaires. « Créneaux » compte les lignes du fichier, groupes parallèles inclus. Les chiffres sous l’axe des mois sont les lundis.</p>
 
-      <section class="panel">
+      <section class="panel noprint">
         <h2>Ajouter une remise de rapport</h2>
         <form class="add" id="addForm">
           <label class="f-mod">Module<select id="fMod" required></select></label>
@@ -153,7 +203,7 @@ td.m { color:var(--muted); font-size:12.5px }
 
       <section>
         <h2>Remises de rapports</h2>
-        <div class="tbl"><table><thead><tr><th>Date</th><th>Module</th><th>UE</th><th>Libellé</th><th>Origine</th><th></th></tr></thead><tbody id="rmBody"></tbody></table></div>
+        <div class="tbl"><table><thead><tr><th>Date</th><th>Module</th><th>UE</th><th>Libellé</th><th>Origine</th><th class="noprint"></th></tr></thead><tbody id="rmBody"></tbody></table></div>
       </section>
 
       <section>
@@ -162,7 +212,7 @@ td.m { color:var(--muted); font-size:12.5px }
         <p class="note" id="noExam"></p>
       </section>
 
-      <section class="panel">
+      <section class="panel noprint">
         <h2>Types d’activité comptés comme examens</h2>
         <div class="types" id="types"></div>
         <p class="note">Par défaut, tout type qui commence par « EXAMEN ». Cochez d’autres types (DS, partiel…) si besoin. Les lignes de type REMISE ou RAPPORT sont toujours lues comme des remises.</p>
@@ -171,7 +221,8 @@ td.m { color:var(--muted); font-size:12.5px }
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="vendor/html2canvas.min.js"></script>
 <script>
 (function () {
 "use strict";
@@ -257,7 +308,7 @@ function findTable(aoa) {
   return null;
 }
 function readBook(buf, name) {
-  if (!/\.(csv|txt)$/i.test(name) && typeof XLSX === "undefined") throw new Error("la bibliothèque de lecture Excel n’a pas pu être chargée (connexion internet ou CDN indisponible). Réessayez, ou utilisez un fichier .csv.");
+  if (!/\.(csv|txt)$/i.test(name) && typeof XLSX === "undefined") throw new Error("la bibliothèque de lecture Excel n’a pas pu être chargée (le dossier vendor est-il bien présent à côté de index.html ?). Vous pouvez utiliser un fichier .csv en attendant.");
   if (/\.(csv|txt)$/i.test(name)) {
     var aoa = parseCSV(decodeText(buf));
     return { sheets: [{ name: "CSV", aoa: aoa, tbl: findTable(aoa) }] };
@@ -412,6 +463,8 @@ function render() {
   $("#fname").textContent = S.name;
   $("#chart").innerHTML = B.html;
   $("#chart").style.minWidth = "calc(var(--lw) + var(--dw)*" + B.N + ")";
+  var cw = $("#chart").scrollWidth;
+  $("#chart").style.setProperty("--pz", String(Math.min(1, 1000 / Math.max(cw, 1))));
 
   var todayN = dayOf(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
   var i = todayN - B.d0, t = $("#today");
@@ -433,7 +486,7 @@ function render() {
   B.rems.sort(function (a, b) { return a.d - b.d; });
   $("#rmBody").innerHTML = B.rems.length ? B.rems.map(function (r) {
     return '<tr class="' + (r.d < todayN ? "past" : "") + '"><td class="n">' + fdl(r.d) + "</td><td><b>" + esc(r.mod) + '</b></td><td class="m">' + esc(r.ue) +
-      "</td><td>" + esc(r.lab) + '</td><td><span class="pill ' + (r.own ? "rm" : "file") + '">' + (r.own ? "ajoutée ici" : "fichier") + "</span></td><td>" +
+      "</td><td>" + esc(r.lab) + '</td><td><span class="pill ' + (r.own ? "rm" : "file") + '">' + (r.own ? "ajoutée ici" : "fichier") + "</span></td><td class=\"noprint\">" +
       (r.own ? '<button class="link" data-del="' + esc(r.id) + '" type="button">Supprimer</button>' : "") + "</td></tr>";
   }).join("") : '<tr><td colspan="6" class="m">Aucune remise pour l’instant. Ajoutez-en avec le formulaire ci-dessus.</td></tr>';
 
@@ -489,7 +542,7 @@ function load(file) {
 /* ---------- export ---------- */
 function exportXlsx() {
   var B = S.B; if (!B) return;
-  if (typeof XLSX === "undefined") { showMsg(["Export impossible : la bibliothèque Excel n’est pas chargée."]); return; }
+  if (typeof XLSX === "undefined") { showMsg(["Export impossible : la bibliothèque Excel n’est pas chargée (dossier vendor manquant ?)."]); return; }
   var head = ["Date", "Début", "Fin", "Durée en minutes", "Type d'activité", "Module", "UE", "Libellé"];
   var aoa = [head], serial = function (n) { return n + 25569; };
   var rows = S.recs.slice().sort(function (a, b) { return a.d - b.d || (a.deb < b.deb ? -1 : 1); });
@@ -505,6 +558,52 @@ function exportXlsx() {
   XLSX.writeFile(wb, S.name.replace(/\.[^.]+$/, "") + "_avec_remises.xlsx");
 }
 
+
+/* ---------- export en image (fond blanc) ---------- */
+function exportImage(fmt) {
+  var B = S.B; if (!B) return;
+  if (typeof html2canvas === "undefined") { showMsg(["Export d’image impossible : la bibliothèque n’est pas chargée (dossier vendor manquant ?)."]); return; }
+  var host = document.createElement("div");
+  host.className = "force-light";
+  host.style.cssText = "position:absolute;left:-100000px;top:0;background:#fff;color:#1b2330;padding:18px;font-family:var(--f-ui);width:max-content";
+  var title = document.createElement("div"); title.className = "exp-title"; title.textContent = "Gantt de semestre";
+  var sub = document.createElement("div"); sub.className = "exp-sub";
+  sub.textContent = S.name + " · édité le " + fdl(dayOf(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate()));
+  var leg = $("#legend").cloneNode(true); leg.removeAttribute("id"); leg.classList.add("exp-legend");
+  var ch = $("#chart").cloneNode(true); ch.removeAttribute("id"); ch.style.zoom = "1";
+  var td = ch.querySelector("#today"); if (td) td.removeAttribute("id");
+  ch.style.border = "1px solid #dfe3ea";
+  /* html2canvas ne dessine pas les dégradés répétés : on remplace la grille par des bandes */
+  ch.querySelectorAll(".row:not(.hdr) .trk").forEach(function (trk) {
+    trk.style.background = "none";
+    var frag = document.createDocumentFragment();
+    for (var w = 0; w < B.N / 7; w++) {
+      var wk = document.createElement("div"); wk.className = "exp-stripe";
+      wk.style.cssText = "left:calc(var(--dw)*" + (w * 7 + 5) + ");width:calc(var(--dw)*2);background:#eef0f4";
+      var ln = document.createElement("div"); ln.className = "exp-stripe";
+      ln.style.cssText = "left:calc(var(--dw)*" + (w * 7) + ");width:1px;background:#e6e9ef";
+      frag.appendChild(wk); frag.appendChild(ln);
+    }
+    trk.insertBefore(frag, trk.firstChild);
+  });
+  host.appendChild(title); host.appendChild(sub); host.appendChild(leg); host.appendChild(ch);
+  document.body.appendChild(host);
+  var mime = fmt === "jpeg" ? "image/jpeg" : "image/png", ext = fmt === "jpeg" ? "jpg" : "png";
+  var done = function () { if (host.parentNode) host.parentNode.removeChild(host); };
+  (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(function () {
+    return html2canvas(host, { scale: 2, backgroundColor: "#ffffff", logging: false, useCORS: true, windowWidth: host.scrollWidth + 40 });
+  }).then(function (canvas) {
+    canvas.toBlob(function (blob) {
+      done();
+      if (!blob) { showMsg(["L’image n’a pas pu être créée (image trop grande pour ce navigateur ?)."]); return; }
+      var a = document.createElement("a"), url = URL.createObjectURL(blob);
+      a.href = url; a.download = S.name.replace(/\.[^.]+$/, "") + "_gantt." + ext;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+    }, mime, 0.92);
+  }).catch(function (e) { done(); showMsg(["Export d’image impossible : " + e.message]); });
+}
+
 /* ---------- événements ---------- */
 var drop = $("#drop"), fin = $("#file");
 drop.addEventListener("click", function () { fin.click(); });
@@ -514,7 +613,15 @@ fin.addEventListener("change", function () { if (fin.files[0]) load(fin.files[0]
 ["dragleave", "drop"].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.classList.remove("over"); }); });
 drop.addEventListener("drop", function (e) { var f = e.dataTransfer.files[0]; if (f) load(f); });
 $("#sheet").addEventListener("change", function (e) { useSheet(+e.target.value); });
-$("#export").addEventListener("click", exportXlsx);
+$("#menu").addEventListener("click", function (e) {
+  var b = e.target.closest ? e.target.closest("[data-exp]") : null; if (!b) return;
+  var k = b.getAttribute("data-exp");
+  $("#menu").open = false;
+  if (k === "xlsx") exportXlsx();
+  else if (k === "pdf") window.print();
+  else exportImage(k);
+});
+document.addEventListener("click", function (e) { var m = $("#menu"); if (m && m.open && !m.contains(e.target)) m.open = false; });
 $("#addForm").addEventListener("submit", function (e) {
   e.preventDefault();
   var mod = $("#fMod").value, date = $("#fDate").value, lab = $("#fLab").value.trim();
