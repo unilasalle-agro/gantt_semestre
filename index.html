@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gantt de semestre</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;700&display=swap">
+<style>
+/* Layout : une page, une zone de dépôt, puis un Gantt (une ligne par module, regroupée par UE) et deux tableaux (examens, remises). */
+:root {
+  --bg:#f5f6f8; --panel:#ffffff; --fg:#1b2330; --muted:#5d6878; --line:#dfe3ea; --grid:#e6e9ef; --wk:#eef0f4;
+  --span:#e3e8f0; --exam:#d42f2b; --examfg:#ffffff; --remise:#a8337f; --remisefg:#ffffff; --today:#0b7a6f;
+  --accent:#25507a; --accentfg:#ffffff; --warn-bg:#fff4e0; --warn-fg:#7a4a00;
+  --CM:#25507a; --TD:#4f9bb3; --TP:#8a79c9; --AF:#aab2bf; --EXT:#c19a2e; --AUTRE:#7d8b6a;
+  --f-ui:"Schibsted Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --dw:8px; --lw:270px; --rh:68px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg:#12161c; --panel:#1a2029; --fg:#e6eaf0; --muted:#97a2b3; --line:#2b3340; --grid:#232a35; --wk:#171d26;
+  --span:#273142; --exam:#ff5a52; --examfg:#1a0b0a; --remise:#e57bc4; --remisefg:#1d0a16; --today:#3fd0c0;
+  --accent:#5b8fc4; --accentfg:#0d1520; --warn-bg:#3a2d12; --warn-fg:#f0c987;
+  --CM:#5b8fc4; --TD:#5fb3cc; --TP:#a496e0; --AF:#6b7686; --EXT:#d8b04a; --AUTRE:#9db08a; color-scheme:dark; } }
+:root[data-theme="dark"] {
+  --bg:#12161c; --panel:#1a2029; --fg:#e6eaf0; --muted:#97a2b3; --line:#2b3340; --grid:#232a35; --wk:#171d26;
+  --span:#273142; --exam:#ff5a52; --examfg:#1a0b0a; --remise:#e57bc4; --remisefg:#1d0a16; --today:#3fd0c0;
+  --accent:#5b8fc4; --accentfg:#0d1520; --warn-bg:#3a2d12; --warn-fg:#f0c987;
+  --CM:#5b8fc4; --TD:#5fb3cc; --TP:#a496e0; --AF:#6b7686; --EXT:#d8b04a; --AUTRE:#9db08a; color-scheme:dark; }
+* { box-sizing:border-box }
+body { margin:0; background:var(--bg); color:var(--fg); font-family:var(--f-ui); font-size:14px; line-height:1.45;
+  padding-block:24px 48px; padding-left:max(16px,env(safe-area-inset-left,0px)); padding-right:max(16px,env(safe-area-inset-right,0px)); }
+.wrap { max-width:1500px; margin:0 auto; display:flex; flex-direction:column; gap:20px }
+h1 { font-size:26px; line-height:1.15; margin:0; font-weight:700; letter-spacing:-.01em; text-wrap:balance }
+h2 { font-size:17px; margin:0 0 8px; font-weight:700 }
+.sub { margin:6px 0 0; color:var(--muted); max-width:75ch }
+button, select, input { font:inherit; color:inherit }
+.btn { background:var(--accent); color:var(--accentfg); border:0; border-radius:5px; padding:7px 14px; font-weight:500; cursor:pointer }
+.btn.ghost { background:transparent; color:var(--fg); border:1px solid var(--line) }
+.btn:focus-visible, select:focus-visible, input:focus-visible, .drop:focus-visible { outline:2px solid var(--accent); outline-offset:2px }
+.drop { border:2px dashed var(--line); border-radius:8px; background:var(--panel); padding:22px 16px; text-align:center; cursor:pointer; display:flex; flex-direction:column; gap:4px; align-items:center }
+.drop.over { border-color:var(--accent) }
+.drop b { font-size:15px }
+.drop span { color:var(--muted); font-size:13px }
+.bar { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center }
+.bar .grow { flex:1 1 auto }
+.filename { font-family:var(--f-num); font-size:12.5px; color:var(--muted) }
+.msg { padding:8px 12px; border-radius:6px; background:var(--warn-bg); color:var(--warn-fg); font-size:13px }
+.msg ul { margin:4px 0 0; padding-left:18px }
+.legend { display:flex; flex-wrap:wrap; gap:6px 16px; align-items:center; font-size:12.5px; color:var(--muted) }
+.legend span { display:inline-flex; align-items:center; gap:6px }
+.sw { width:10px; height:14px; border-radius:2px; display:inline-block }
+.sw.ex { background:var(--exam); width:12px }
+.sw.rm { background:var(--remise); width:11px; height:11px; transform:rotate(45deg); border-radius:1px }
+.sw.td { width:2px; height:16px; background:var(--today) }
+.chart-box { background:var(--panel); border:1px solid var(--line); border-radius:6px; overflow-x:auto }
+.chart { position:relative; width:max-content }
+.row { display:flex; border-bottom:1px solid var(--grid); min-height:var(--rh) }
+.row.grp { min-height:0; height:30px; background:var(--bg) }
+.lab { flex:0 0 var(--lw); position:sticky; left:0; z-index:5; background:var(--panel); border-right:1px solid var(--line);
+  padding:5px 10px; display:flex; flex-direction:column; justify-content:center; gap:1px; min-width:0 }
+.row.grp .lab { background:var(--bg); font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); white-space:nowrap; flex-direction:row; align-items:center; overflow:visible }
+.row.grp .lab span { position:sticky; left:10px }
+.row.grp .lab em { font-style:normal; font-weight:400; text-transform:none; letter-spacing:0 }
+.lab b { font-size:13.5px; font-weight:500; line-height:1.25; overflow-wrap:break-word }
+.lab small { font-family:var(--f-num); font-size:10.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.trk { position:relative; flex:0 0 auto;
+  background:
+   repeating-linear-gradient(90deg, var(--grid) 0 1px, transparent 1px calc(var(--dw)*7)),
+   repeating-linear-gradient(90deg, transparent 0 calc(var(--dw)*5), var(--wk) calc(var(--dw)*5) calc(var(--dw)*7)); }
+.hdr { min-height:0; height:44px; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:6 }
+.hdr .lab { justify-content:flex-end; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em }
+.hdr .trk { background:none }
+.mo,.wk { position:absolute; white-space:nowrap }
+.mo { top:3px; height:18px; font-size:11.5px; font-weight:700; padding-left:6px; border-left:1px solid var(--line); text-transform:capitalize; overflow:hidden }
+.wk { top:25px; font-family:var(--f-num); font-size:10px; color:var(--muted); padding-left:2px; border-left:1px solid var(--grid); height:16px }
+.span { position:absolute; top:calc(50% - 3px); height:18px; background:var(--span); border-radius:3px }
+.span.ue { top:11px; height:8px }
+.day { position:absolute; top:calc(50% - 3px); width:calc(var(--dw) - 1px); height:18px; display:flex; flex-direction:column; gap:1px; border-radius:1.5px; overflow:hidden }
+.day i { flex:1; display:block }
+.t-CM{background:var(--CM)} .t-TD{background:var(--TD)} .t-TP{background:var(--TP)} .t-AF{background:var(--AF)} .t-EXT{background:var(--EXT)} .t-AUTRE{background:var(--AUTRE)}
+.exm { position:absolute; top:calc(50% - 7px); height:26px; width:calc(var(--dw) + 2px); background:var(--exam); border-radius:2px; z-index:2; box-shadow:0 0 0 1.5px var(--panel) }
+.exl { position:absolute; top:4px; z-index:3; background:var(--exam); color:var(--examfg); font-family:var(--f-num); font-size:10.5px; font-weight:500; padding:0 5px; line-height:15px; border-radius:3px; white-space:nowrap; transform:translateX(-50%) }
+.exl.r { transform:translateX(-100%) translateX(calc(var(--dw)/2 + 1px)) }
+.exl.l { transform:translateX(calc(var(--dw)/-2 - 1px)) }
+.rmk { position:absolute; top:calc(50% - 6px); width:12px; height:12px; margin-left:calc((var(--dw) - 12px)/2); background:var(--remise); transform:rotate(45deg); border-radius:2px; z-index:2; box-shadow:0 0 0 1.5px var(--panel) }
+.rml { position:absolute; bottom:3px; z-index:3; background:var(--remise); color:var(--remisefg); font-family:var(--f-num); font-size:10.5px; font-weight:500; padding:0 5px; line-height:15px; border-radius:3px; white-space:nowrap; transform:translateX(-50%); margin-left:calc(var(--dw)/2) }
+.rml.r { transform:translateX(-100%) translateX(calc(var(--dw)/2 + 1px)); margin-left:0 }
+.rml.l { transform:none; margin-left:calc(var(--dw)/-2 - 1px) }
+.past { opacity:.45 }
+tr.past td { opacity:.5 }
+.todayline { position:absolute; top:0; bottom:0; width:2px; background:var(--today); z-index:4; pointer-events:none }
+.todayline::after { content:"aujourd’hui"; position:absolute; top:46px; left:4px; font-size:10px; font-family:var(--f-num); color:var(--today); background:var(--panel); padding:0 3px; border-radius:2px }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:14px 16px }
+form.add { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end }
+form.add label { display:flex; flex-direction:column; gap:3px; font-size:12px; color:var(--muted); min-width:0 }
+form.add input, form.add select { background:var(--bg); border:1px solid var(--line); border-radius:5px; padding:6px 8px; color:var(--fg); max-width:100%; min-width:0 }
+form.add .f-mod { flex:1 1 280px } form.add .f-date { flex:0 0 150px } form.add .f-lab { flex:1 1 200px }
+.types { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:13px }
+.types label { display:inline-flex; gap:5px; align-items:center }
+.tbl { background:var(--panel); border:1px solid var(--line); border-radius:6px; overflow-x:auto }
+table { border-collapse:collapse; width:100%; min-width:640px }
+th,td { text-align:left; padding:8px 12px; border-bottom:1px solid var(--grid); vertical-align:top }
+th { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:700 }
+tr:last-child td { border-bottom:0 }
+td.n { font-family:var(--f-num); font-size:12.5px; white-space:nowrap }
+td.m { color:var(--muted); font-size:12.5px }
+.pill { display:inline-block; padding:1px 8px; border-radius:10px; font-size:11.5px; font-weight:500; background:var(--exam); color:var(--examfg) }
+.pill.rm { background:var(--remise); color:var(--remisefg) }
+.pill.file { background:var(--span); color:var(--muted) }
+.note { color:var(--muted); font-size:12.5px; margin:8px 0 0; max-width:85ch }
+.link { background:none; border:0; color:var(--accent); cursor:pointer; padding:0; text-decoration:underline }
+@media (max-width:640px) { :root { --lw:150px } h1 { font-size:22px } .lab small { display:none } }
+@media (prefers-reduced-motion: no-preference) { .drop { transition:border-color .15s } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Gantt de semestre</h1>
+    <p class="sub">Déposez le planning du semestre (Excel ou CSV). Le Gantt regroupe les modules par UE et fait ressortir les examens et les remises de rapports. Le fichier reste dans votre navigateur et n’est envoyé nulle part.</p>
+  </header>
+
+  <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choisir un fichier de planning">
+    <b>Déposer un fichier .xlsx ou .csv ici, ou cliquer pour le choisir</b>
+    <span>Colonnes attendues : Date, Début, Fin, Durée en minutes, Type d’activité, Module, UE</span>
+    <input id="file" type="file" accept=".xlsx,.xls,.csv,.txt" hidden>
+  </div>
+  <div id="msg" class="msg" hidden></div>
+
+  <div id="app" hidden>
+    <div class="wrap">
+      <div class="bar">
+        <span class="filename" id="fname"></span>
+        <label id="sheetPick" hidden>Feuille&nbsp;<select id="sheet"></select></label>
+        <span class="grow"></span>
+        <button class="btn ghost" id="export" type="button">Télécharger le planning avec les remises (.xlsx)</button>
+      </div>
+
+      <div class="legend" id="legend"></div>
+      <div class="chart-box"><div class="chart" id="chart"></div></div>
+      <p class="note">Chaque colonne est un jour, chaque trait un jour de cours. Survolez un jour pour voir les horaires. « Créneaux » compte les lignes du fichier, groupes parallèles inclus. Les chiffres sous l’axe des mois sont les lundis.</p>
+
+      <section class="panel">
+        <h2>Ajouter une remise de rapport</h2>
+        <form class="add" id="addForm">
+          <label class="f-mod">Module<select id="fMod" required></select></label>
+          <label class="f-date">Date<input id="fDate" type="date" required></label>
+          <label class="f-lab">Libellé affiché<input id="fLab" type="text" maxlength="40" placeholder="Rapport final" required></label>
+          <button class="btn" type="submit">Ajouter</button>
+        </form>
+        <p class="note">Les remises ajoutées ici sont mémorisées dans ce navigateur, sur cet ordinateur. Pour les conserver ou les partager, téléchargez le planning mis à jour : elles y figurent sur des lignes de type REMISE, que l’application relit au prochain dépôt.</p>
+      </section>
+
+      <section>
+        <h2>Remises de rapports</h2>
+        <div class="tbl"><table><thead><tr><th>Date</th><th>Module</th><th>UE</th><th>Libellé</th><th>Origine</th><th></th></tr></thead><tbody id="rmBody"></tbody></table></div>
+      </section>
+
+      <section>
+        <h2>Examens, par date</h2>
+        <div class="tbl"><table><thead><tr><th>Date</th><th>Horaire</th><th>Module</th><th>UE</th><th>Format</th></tr></thead><tbody id="exBody"></tbody></table></div>
+        <p class="note" id="noExam"></p>
+      </section>
+
+      <section class="panel">
+        <h2>Types d’activité comptés comme examens</h2>
+        <div class="types" id="types"></div>
+        <p class="note">Par défaut, tout type qui commence par « EXAMEN ». Cochez d’autres types (DS, partiel…) si besoin. Les lignes de type REMISE ou RAPPORT sont toujours lues comme des remises.</p>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+(function () {
+"use strict";
+var MOIS = ["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."];
+var MOIS_L = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+var JOURS = ["dim.","lun.","mar.","mer.","jeu.","ven.","sam."];
+var TYPES_COURS = ["CM","TD","TP","AF","EXT"];
+var LS_REM = "gantt-semestre:remises";
+var LS_EXT = "gantt-semestre:types-examen";
+
+var $ = function (s) { return document.querySelector(s); };
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+function norm(s) { return String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim(); }
+function pad(n) { return (n < 10 ? "0" : "") + n; }
+
+/* ---------- dates : on manipule des numéros de jour (jours depuis 1970, UTC) ---------- */
+function dayOf(y, m, d) { return Math.round(Date.UTC(y, m - 1, d) / 864e5); }
+function ymd(n) { var d = new Date(n * 864e5); return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, d: d.getUTCDate(), w: d.getUTCDay() }; }
+function iso(n) { var o = ymd(n); return o.y + "-" + pad(o.m) + "-" + pad(o.d); }
+function fd(n) { var o = ymd(n); return o.d + " " + MOIS[o.m - 1]; }
+function fdl(n) { var o = ymd(n); return JOURS[o.w] + " " + o.d + " " + MOIS[o.m - 1] + " " + o.y; }
+function parseDate(v) {
+  if (typeof v === "number" && v > 20000 && v < 80000) return Math.floor(v) - 25569;
+  if (v instanceof Date && !isNaN(v)) return dayOf(v.getFullYear(), v.getMonth() + 1, v.getDate());
+  if (typeof v === "string") {
+    var s = v.trim(), m;
+    if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return dayOf(+m[1], +m[2], +m[3]);
+    if ((m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/))) { var y = +m[3]; if (y < 100) y += 2000; return dayOf(y, +m[2], +m[1]); }
+    if (/^\d{5}$/.test(s)) return +s - 25569;
+  }
+  return null;
+}
+function parseTime(v) {
+  if (typeof v === "number" && v >= 0 && v < 1) { var t = Math.round(v * 1440); return pad(Math.floor(t / 60)) + ":" + pad(t % 60); }
+  if (typeof v === "string") { var m = v.trim().match(/^(\d{1,2})[:h](\d{2})/); if (m) return pad(+m[1]) + ":" + m[2]; }
+  return "";
+}
+
+/* ---------- lecture des fichiers ---------- */
+function decodeText(buf) {
+  var bytes = new Uint8Array(buf), txt;
+  try { txt = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
+  catch (e) { txt = new TextDecoder("windows-1252").decode(bytes); }
+  return txt.replace(/^﻿/, "");
+}
+function parseCSV(txt) {
+  var first = txt.split(/\r?\n/, 1)[0] || "";
+  var best = ";", bc = -1;
+  [";", ",", "\t", "|"].forEach(function (d) { var c = first.split(d).length; if (c > bc) { bc = c; best = d; } });
+  var rows = [], row = [], cell = "", q = false;
+  for (var i = 0; i < txt.length; i++) {
+    var c = txt[i];
+    if (q) {
+      if (c === '"') { if (txt[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c;
+    } else if (c === '"') q = true;
+    else if (c === best) { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && txt[i + 1] === "\n") i++; row.push(cell); rows.push(row); row = []; cell = ""; }
+    else cell += c;
+  }
+  if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter(function (r) { return r.some(function (x) { return String(x).trim() !== ""; }); });
+}
+function headerMap(row) {
+  var m = {};
+  row.forEach(function (h, i) {
+    var n = norm(h);
+    if (m.date == null && (n === "date" || /\[date\]$/.test(n) || /^date\b/.test(n))) m.date = i;
+    else if (m.debut == null && n === "debut") m.debut = i;
+    else if (m.fin == null && n === "fin") m.fin = i;
+    else if (m.duree == null && /^duree/.test(n)) m.duree = i;
+    else if (m.type == null && n.indexOf("type") >= 0) m.type = i;
+    else if (m.module == null && n === "module") m.module = i;
+    else if (m.ue == null && n === "ue") m.ue = i;
+    else if (m.lib == null && /^libelle/.test(n)) m.lib = i;
+  });
+  return m;
+}
+function findTable(aoa) {
+  for (var i = 0; i < Math.min(aoa.length, 10); i++) {
+    var m = headerMap(aoa[i]);
+    if (m.date != null && m.module != null) return { map: m, start: i + 1 };
+  }
+  return null;
+}
+function readBook(buf, name) {
+  if (!/\.(csv|txt)$/i.test(name) && typeof XLSX === "undefined") throw new Error("la bibliothèque de lecture Excel n’a pas pu être chargée (connexion internet ou CDN indisponible). Réessayez, ou utilisez un fichier .csv.");
+  if (/\.(csv|txt)$/i.test(name)) {
+    var aoa = parseCSV(decodeText(buf));
+    return { sheets: [{ name: "CSV", aoa: aoa, tbl: findTable(aoa) }] };
+  }
+  var wb = XLSX.read(buf, { type: "array" });
+  return { sheets: wb.SheetNames.map(function (n) {
+    var aoa = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: "" });
+    return { name: n, aoa: aoa, tbl: findTable(aoa) };
+  }) };
+}
+function extract(sheet) {
+  var t = sheet.tbl, m = t.map, recs = [], skipped = [];
+  for (var i = t.start; i < sheet.aoa.length; i++) {
+    var r = sheet.aoa[i];
+    if (!r.some(function (x) { return String(x).trim() !== ""; })) continue;
+    var d = parseDate(r[m.date]);
+    var mod = m.module != null ? String(r[m.module]).trim() : "";
+    if (d == null || !mod) { skipped.push(i + 1); continue; }
+    var typ = m.type != null ? String(r[m.type]).trim().toUpperCase() : "";
+    var dur = m.duree != null ? r[m.duree] : "";
+    recs.push({
+      d: d, deb: m.debut != null ? parseTime(r[m.debut]) : "", fin: m.fin != null ? parseTime(r[m.fin]) : "",
+      dur: dur, typ: typ, mod: mod, ue: m.ue != null && String(r[m.ue]).trim() ? String(r[m.ue]).trim() : "Sans UE",
+      lib: m.lib != null ? String(r[m.lib]).trim() : ""
+    });
+  }
+  return { recs: recs, skipped: skipped };
+}
+
+/* ---------- état ---------- */
+var S = { name: "", book: null, sheetIx: 0, recs: [], skipped: [], examTypes: null, own: [] };
+
+function lsGet(k, def) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch (e) { return def; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+S.own = lsGet(LS_REM, []);
+
+function isRemiseType(t) { return t === "REMISE" || t === "RAPPORT"; }
+function ueRank(u) { var m = u.match(/^UE\s*(\d+)/i); return m ? [0, +m[1]] : [1, 0]; }
+
+/* ---------- rendu ---------- */
+function build() {
+  var recs = S.recs;
+  var types = []; recs.forEach(function (r) { if (r.typ && !isRemiseType(r.typ) && types.indexOf(r.typ) < 0) types.push(r.typ); });
+  var saved = lsGet(LS_EXT, null);
+  if (!S.examTypes) {
+    S.examTypes = types.filter(function (t) { return saved ? saved.indexOf(t) >= 0 : /^EXAMEN/.test(t); });
+    if (saved) types.forEach(function (t) { if (/^EXAMEN/.test(t) && S.examTypes.indexOf(t) < 0 && saved.indexOf("!" + t) < 0) S.examTypes.push(t); });
+  }
+  var isEx = function (t) { return S.examTypes.indexOf(t) >= 0; };
+
+  var mods = {}, order = [];
+  recs.forEach(function (r) {
+    if (!mods[r.mod]) { mods[r.mod] = { name: r.mod, ue: r.ue, sess: [], rem: [] }; order.push(r.mod); }
+    var M = mods[r.mod];
+    if (isRemiseType(r.typ)) M.rem.push({ d: r.d, lab: r.lib || "Remise", own: false });
+    else M.sess.push(r);
+  });
+  var orphan = 0;
+  S.own.forEach(function (o) {
+    var d = parseDate(o.date);
+    if (mods[o.module] && d != null) mods[o.module].rem.push({ d: d, lab: o.label, own: true, id: o.id });
+    else orphan++;
+  });
+
+  var all = [];
+  order.forEach(function (k) { mods[k].sess.forEach(function (s) { all.push(s.d); }); mods[k].rem.forEach(function (x) { all.push(x.d); }); });
+  if (!all.length) return null;
+  var dmin = Math.min.apply(null, all), dmax = Math.max.apply(null, all);
+  var d0 = dmin - ((ymd(dmin).w + 6) % 7);
+  var dend = dmax + (7 - ((ymd(dmax).w + 6) % 7) - 1);
+  var N = dend - d0 + 1, idx = function (d) { return d - d0; };
+  var dw = "var(--dw)";
+
+  var ues = {}; order.forEach(function (k) { (ues[mods[k].ue] = ues[mods[k].ue] || []).push(mods[k]); });
+  var ueNames = Object.keys(ues).sort(function (a, b) {
+    var ra = ueRank(a), rb = ueRank(b);
+    return ra[0] - rb[0] || ra[1] - rb[1] || a.localeCompare(b, "fr");
+  });
+  var first = function (M) { var a = M.sess.map(function (s) { return s.d; }).concat(M.rem.map(function (x) { return x.d; })); return Math.min.apply(null, a); };
+
+  var head = "", cur = d0;
+  while (cur <= dend) {
+    var o = ymd(cur), nm = o.m === 12 ? dayOf(o.y + 1, 1, 1) : dayOf(o.y, o.m + 1, 1), e = Math.min(nm - 1, dend);
+    head += '<div class="mo" style="left:calc(' + dw + '*' + idx(cur) + ');width:calc(' + dw + '*' + (e - cur + 1) + ')">' + MOIS_L[o.m - 1] + " " + o.y + "</div>";
+    cur = nm;
+  }
+  for (var w = 0; w < N / 7; w++) head += '<div class="wk" style="left:calc(' + dw + '*' + (w * 7) + ')">' + ymd(d0 + w * 7).d + "</div>";
+
+  var tw = 'width:calc(' + dw + '*' + N + ')';
+  var html = '<div class="row hdr"><div class="lab">UE · module</div><div class="trk" style="' + tw + '">' + head + "</div></div>";
+  var exams = [], rems = [], nbEx = 0;
+
+  ueNames.forEach(function (u) {
+    var ms = ues[u].slice().sort(function (a, b) { return first(a) - first(b); });
+    var ds = []; ms.forEach(function (M) { M.sess.forEach(function (s) { ds.push(s.d); }); M.rem.forEach(function (x) { ds.push(x.d); }); });
+    var a = Math.min.apply(null, ds), b = Math.max.apply(null, ds);
+    html += '<div class="row grp"><div class="lab"><span>' + esc(u) + " <em>· " + ms.length + " module" + (ms.length > 1 ? "s" : "") + '</em></span></div><div class="trk" style="' + tw +
+      '"><div class="span ue" style="left:calc(' + dw + '*' + idx(a) + ');width:calc(' + dw + '*' + (b - a + 1) + ')"></div></div></div>';
+    ms.forEach(function (M) {
+      var byDay = {};
+      M.sess.forEach(function (s) { (byDay[s.d] = byDay[s.d] || []).push(s); });
+      var days = Object.keys(byDay).map(Number).sort(function (x, y) { return x - y; });
+      var ticks = "", exd = [];
+      days.forEach(function (d) {
+        var lst = byDay[d].slice().sort(function (x, y) { return x.deb < y.deb ? -1 : 1; });
+        var tip = lst.map(function (s) { return s.typ + (s.deb ? " " + s.deb + "–" + s.fin : ""); }).join("; ");
+        tip = fdl(d) + " · " + tip;
+        var ty = []; lst.forEach(function (s) { if (!isEx(s.typ) && ty.indexOf(s.typ) < 0) ty.push(s.typ); });
+        ty.sort(function (x, y) { var ix = TYPES_COURS.indexOf(x), iy = TYPES_COURS.indexOf(y); return (ix < 0 ? 9 : ix) - (iy < 0 ? 9 : iy); });
+        if (ty.length) ticks += '<div class="day" style="left:calc(' + dw + '*' + idx(d) + ')" title="' + esc(tip) + '">' +
+          ty.map(function (t) { return '<i class="t-' + (TYPES_COURS.indexOf(t) >= 0 ? t : "AUTRE") + '"></i>'; }).join("") + "</div>";
+        var ex = lst.filter(function (s) { return isEx(s.typ); });
+        if (ex.length) {
+          exd.push({ d: d, ex: ex, tip: tip });
+          ex.forEach(function (s) { exams.push({ d: d, deb: s.deb, fin: s.fin, typ: s.typ, mod: M.name, ue: M.ue }); nbEx++; });
+        }
+      });
+      var cl = [];
+      exd.forEach(function (x) { var l = cl[cl.length - 1]; if (l && x.d - l[l.length - 1].d <= 3) l.push(x); else cl.push([x]); });
+      var marks = "";
+      cl.forEach(function (c) {
+        c.forEach(function (x) { marks += '<div class="exm' + '" data-d="' + x.d + '" style="left:calc(' + dw + '*' + idx(x.d) + ' - 1px)" title="' + esc(x.tip) + '"></div>'; });
+        var a = c[0].d, b = c[c.length - 1].d, f = {};
+        c.forEach(function (x) { x.ex.forEach(function (s) { f[s.typ === "EXAMEN_ECRIT" ? "Écrit" : s.typ === "EXAMEN_ORAL" ? "Oral" : s.typ] = 1; }); });
+        var txt = Object.keys(f).sort().join("/") + " · " + (a === b ? fd(a) : ymd(a).d + "–" + ymd(b).d + " " + MOIS[ymd(b).m - 1]);
+        var mid = (idx(a) + idx(b)) / 2, pos = mid > N - 14 ? "r" : mid < 6 ? "l" : "c";
+        marks += '<div class="exl ' + pos + '" data-d="' + b + '" style="left:calc(' + dw + '*' + mid + ' + ' + dw + '/2)">' + esc(txt) + "</div>";
+      });
+      M.rem.forEach(function (x) {
+        var pos = idx(x.d) > N - 14 ? "r" : idx(x.d) < 6 ? "l" : "c";
+        marks += '<div class="rmk" data-d="' + x.d + '" style="left:calc(' + dw + '*' + idx(x.d) + ')" title="' + esc(fdl(x.d) + " · " + x.lab) + '"></div>' +
+          '<div class="rml ' + pos + '" data-d="' + x.d + '" style="left:calc(' + dw + '*' + idx(x.d) + ')">' + esc(x.lab + " · " + fd(x.d)) + "</div>";
+        rems.push({ d: x.d, mod: M.name, ue: M.ue, lab: x.lab, own: x.own, id: x.id });
+      });
+      var span = "", meta = "";
+      if (M.sess.length) {
+        var f0 = Math.min.apply(null, M.sess.map(function (s) { return s.d; })), l0 = Math.max.apply(null, M.sess.map(function (s) { return s.d; }));
+        span = '<div class="span" style="left:calc(' + dw + '*' + idx(f0) + ');width:calc(' + dw + '*' + (l0 - f0 + 1) + ')"></div>';
+        meta = M.sess.length + " créneaux · " + fd(f0) + " → " + fd(l0);
+      } else meta = "aucun cours dans le fichier";
+      html += '<div class="row"><div class="lab"><b>' + esc(M.name) + "</b><small>" + meta + '</small></div><div class="trk" style="' + tw + '">' + span + ticks + marks + "</div></div>";
+    });
+  });
+  html += '<div class="todayline" id="today" style="display:none"></div>';
+  return { html: html, N: N, d0: d0, exams: exams, rems: rems, mods: mods, order: order, ueNames: ueNames, ues: ues, types: types, orphan: orphan, nbEx: nbEx };
+}
+
+function render() {
+  var B = build();
+  if (!B) { showMsg(["Aucune séance exploitable dans ce fichier."]); $("#app").hidden = true; return; }
+  $("#app").hidden = false;
+  $("#fname").textContent = S.name;
+  $("#chart").innerHTML = B.html;
+  $("#chart").style.minWidth = "calc(var(--lw) + var(--dw)*" + B.N + ")";
+
+  var todayN = dayOf(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
+  var i = todayN - B.d0, t = $("#today");
+  if (i >= 0 && i < B.N) { t.style.left = "calc(var(--lw) + var(--dw)*" + i + " + var(--dw)/2 - 1px)"; t.style.display = "block"; }
+  document.querySelectorAll("#chart [data-d]").forEach(function (e) { if (+e.getAttribute("data-d") < todayN) e.classList.add("past"); });
+
+  var used = {}; B.order.forEach(function (k) { B.mods[k].sess.forEach(function (s) { used[s.typ] = 1; }); });
+  var leg = TYPES_COURS.concat(Object.keys(used).filter(function (t) { return TYPES_COURS.indexOf(t) < 0 && S.examTypes.indexOf(t) < 0; }))
+    .filter(function (t) { return used[t]; })
+    .map(function (t) { return '<span><i class="sw t-' + (TYPES_COURS.indexOf(t) >= 0 ? t : "AUTRE") + '"></i>' + esc(t) + "</span>"; }).join("");
+  $("#legend").innerHTML = leg + '<span><i class="sw ex"></i>Examen</span><span><i class="sw rm"></i>Remise de rapport</span><span><i class="sw td"></i>Aujourd’hui</span>';
+
+  var sel = $("#fMod"), keep = sel.value;
+  sel.innerHTML = B.ueNames.map(function (u) {
+    return '<optgroup label="' + esc(u) + '">' + B.ues[u].map(function (M) { return '<option value="' + esc(M.name) + '">' + esc(M.name) + "</option>"; }).join("") + "</optgroup>";
+  }).join("");
+  if (keep) sel.value = keep;
+
+  B.rems.sort(function (a, b) { return a.d - b.d; });
+  $("#rmBody").innerHTML = B.rems.length ? B.rems.map(function (r) {
+    return '<tr class="' + (r.d < todayN ? "past" : "") + '"><td class="n">' + fdl(r.d) + "</td><td><b>" + esc(r.mod) + '</b></td><td class="m">' + esc(r.ue) +
+      "</td><td>" + esc(r.lab) + '</td><td><span class="pill ' + (r.own ? "rm" : "file") + '">' + (r.own ? "ajoutée ici" : "fichier") + "</span></td><td>" +
+      (r.own ? '<button class="link" data-del="' + esc(r.id) + '" type="button">Supprimer</button>' : "") + "</td></tr>";
+  }).join("") : '<tr><td colspan="6" class="m">Aucune remise pour l’instant. Ajoutez-en avec le formulaire ci-dessus.</td></tr>';
+
+  B.exams.sort(function (a, b) { return a.d - b.d || (a.deb < b.deb ? -1 : 1); });
+  $("#exBody").innerHTML = B.exams.length ? B.exams.map(function (e) {
+    return '<tr class="' + (e.d < todayN ? "past" : "") + '"><td class="n">' + fdl(e.d) + '</td><td class="n">' + (e.deb ? e.deb + "–" + e.fin : "") + "</td><td><b>" + esc(e.mod) +
+      '</b></td><td class="m">' + esc(e.ue) + '</td><td><span class="pill">' + (e.typ === "EXAMEN_ECRIT" ? "Écrit" : e.typ === "EXAMEN_ORAL" ? "Oral" : esc(e.typ)) + "</span></td></tr>";
+  }).join("") : '<tr><td colspan="5" class="m">Aucun examen avec les types cochés ci-dessous.</td></tr>';
+  var noEx = B.order.filter(function (k) { return !B.exams.some(function (e) { return e.mod === k; }); });
+  $("#noExam").textContent = noEx.length ? "Aucun examen dans le fichier pour : " + noEx.join(", ") + "." : "";
+
+  $("#types").innerHTML = B.types.map(function (t, k) {
+    return '<label><input type="checkbox" data-ty="' + esc(t) + '"' + (S.examTypes.indexOf(t) >= 0 ? " checked" : "") + "> " + esc(t) + "</label>";
+  }).join("");
+
+  var notes = [];
+  if (S.skipped.length) notes.push(S.skipped.length + " ligne(s) ignorée(s) car sans date lisible ou sans module (lignes " + S.skipped.slice(0, 8).join(", ") + (S.skipped.length > 8 ? "…" : "") + ").");
+  if (B.orphan) notes.push(B.orphan + " remise(s) mémorisée(s) concernent des modules absents de ce fichier. Elles sont conservées mais non affichées.");
+  showMsg(notes);
+  S.B = B;
+}
+
+function showMsg(list) {
+  var m = $("#msg");
+  if (!list || !list.length) { m.hidden = true; m.innerHTML = ""; return; }
+  m.hidden = false; m.innerHTML = list.length === 1 ? esc(list[0]) : "<ul>" + list.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>";
+}
+
+/* ---------- chargement ---------- */
+function useSheet(ix) {
+  var sh = S.book.sheets[ix];
+  if (!sh || !sh.tbl) { showMsg(["Cette feuille ne contient pas de colonnes « Date » et « Module »."]); $("#app").hidden = true; return; }
+  var x = extract(sh);
+  S.sheetIx = ix; S.recs = x.recs; S.skipped = x.skipped; S.examTypes = null;
+  render();
+}
+function load(file) {
+  var rd = new FileReader();
+  rd.onload = function () {
+    try {
+      S.name = file.name; S.book = readBook(rd.result, file.name);
+      var ok = S.book.sheets.map(function (s, i) { return s.tbl ? i : -1; }).filter(function (i) { return i >= 0; });
+      if (!ok.length) { $("#app").hidden = true; showMsg(["Je n’ai pas trouvé de colonnes « Date » et « Module » dans ce fichier. Vérifiez la ligne d’en-tête."]); return; }
+      var sel = $("#sheet");
+      sel.innerHTML = ok.map(function (i) { return '<option value="' + i + '">' + esc(S.book.sheets[i].name) + "</option>"; }).join("");
+      $("#sheetPick").hidden = ok.length < 2;
+      useSheet(ok[0]);
+    } catch (e) { $("#app").hidden = true; showMsg(["Lecture impossible : " + e.message]); }
+  };
+  rd.readAsArrayBuffer(file);
+}
+
+/* ---------- export ---------- */
+function exportXlsx() {
+  var B = S.B; if (!B) return;
+  if (typeof XLSX === "undefined") { showMsg(["Export impossible : la bibliothèque Excel n’est pas chargée."]); return; }
+  var head = ["Date", "Début", "Fin", "Durée en minutes", "Type d'activité", "Module", "UE", "Libellé"];
+  var aoa = [head], serial = function (n) { return n + 25569; };
+  var rows = S.recs.slice().sort(function (a, b) { return a.d - b.d || (a.deb < b.deb ? -1 : 1); });
+  rows.forEach(function (r) { aoa.push([{ t: "n", v: serial(r.d), z: "dd/mm/yyyy" }, r.deb, r.fin, r.dur, r.typ, r.mod, r.ue, r.lib]); });
+  var known = {}; B.rems.forEach(function (r) { if (r.own) known[r.id] = r; });
+  S.own.forEach(function (o) {
+    var d = parseDate(o.date), M = B.mods[o.module]; if (d == null || !M) return;
+    aoa.push([{ t: "n", v: serial(d), z: "dd/mm/yyyy" }, "", "", "", "REMISE", o.module, M.ue, o.label]);
+  });
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [{ wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 10 }, { wch: 16 }, { wch: 50 }, { wch: 14 }, { wch: 24 }];
+  var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+  XLSX.writeFile(wb, S.name.replace(/\.[^.]+$/, "") + "_avec_remises.xlsx");
+}
+
+/* ---------- événements ---------- */
+var drop = $("#drop"), fin = $("#file");
+drop.addEventListener("click", function () { fin.click(); });
+drop.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fin.click(); } });
+fin.addEventListener("change", function () { if (fin.files[0]) load(fin.files[0]); });
+["dragenter", "dragover"].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.classList.add("over"); }); });
+["dragleave", "drop"].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.classList.remove("over"); }); });
+drop.addEventListener("drop", function (e) { var f = e.dataTransfer.files[0]; if (f) load(f); });
+$("#sheet").addEventListener("change", function (e) { useSheet(+e.target.value); });
+$("#export").addEventListener("click", exportXlsx);
+$("#addForm").addEventListener("submit", function (e) {
+  e.preventDefault();
+  var mod = $("#fMod").value, date = $("#fDate").value, lab = $("#fLab").value.trim();
+  if (!mod || !date || !lab) return;
+  S.own.push({ id: "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), module: mod, date: date, label: lab });
+  lsSet(LS_REM, S.own);
+  $("#fLab").value = ""; render();
+});
+document.addEventListener("click", function (e) {
+  var id = e.target && e.target.getAttribute && e.target.getAttribute("data-del");
+  if (!id) return;
+  S.own = S.own.filter(function (o) { return o.id !== id; }); lsSet(LS_REM, S.own); render();
+});
+document.addEventListener("change", function (e) {
+  var t = e.target && e.target.getAttribute && e.target.getAttribute("data-ty");
+  if (!t) return;
+  var i = S.examTypes.indexOf(t);
+  if (e.target.checked && i < 0) S.examTypes.push(t);
+  if (!e.target.checked && i >= 0) S.examTypes.splice(i, 1);
+  var all = S.B.types, saved = S.examTypes.slice();
+  all.forEach(function (x) { if (/^EXAMEN/.test(x) && S.examTypes.indexOf(x) < 0) saved.push("!" + x); });
+  lsSet(LS_EXT, saved); render();
+});
+window.__gantt = { S: S, load: load };
+})();
+</script>
+</body>
+</html>
